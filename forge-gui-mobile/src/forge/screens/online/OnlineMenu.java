@@ -35,7 +35,12 @@ public class OnlineMenu extends FPopupMenu {
                     customAction.run();
                     return;
                 }
-                Forge.back(); //remove current screen from chain
+                OnlineLobbyScreen.swappingScreens = true; //don't treat this as leaving an Adventure Duel
+                try {
+                    Forge.back(); //remove current screen from chain
+                } finally {
+                    OnlineLobbyScreen.swappingScreens = false;
+                }
                 open();
                 setPreferredScreen(OnlineScreen.this);
             });

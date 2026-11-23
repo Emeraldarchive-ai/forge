@@ -14,6 +14,7 @@ import forge.adventure.stage.GameHUD;
 import forge.adventure.stage.GameStage;
 import forge.adventure.stage.MapStage;
 import forge.adventure.util.AdventureBackgroundDownloader;
+import forge.adventure.util.AdventureDuel;
 import forge.adventure.util.Config;
 import forge.adventure.util.Controls;
 import forge.adventure.world.WorldSave;
@@ -38,7 +39,7 @@ import java.util.regex.Pattern;
 public class StartScene extends UIScene {
     private static StartScene object;
     Dialog exitDialog, backupDialog, zipDialog, unzipDialog;
-    TextraButton saveButton, resumeButton, continueButton;
+    TextraButton saveButton, resumeButton, continueButton, duelButton;
     TypingLabel version = Controls.newTypingLabel("{GRADIENT}[%80]v." + Forge.getDeviceAdapter().getVersionString() + "{ENDGRADIENT}");
 
 
@@ -62,6 +63,14 @@ public class StartScene extends UIScene {
 
         saveButton.setVisible(false);
         resumeButton.setVisible(false);
+
+        // Adventure Duel: shares the Save button's row (left half Save, right half Duel)
+        duelButton = Controls.newTextButton("Duel", this::duelFriend);
+        float halfWidth = (saveButton.getWidth() - 4) / 2f;
+        duelButton.setBounds(saveButton.getX() + halfWidth + 4, saveButton.getY(), halfWidth, saveButton.getHeight());
+        saveButton.setWidth(halfWidth);
+        duelButton.setVisible(false);
+        ui.addActor(duelButton);
         version.setHeight(5);
         version.skipToTheEnd();
         ui.addActor(version);
@@ -85,6 +94,21 @@ public class StartScene extends UIScene {
         } else {
             SaveLoadScene.instance().setMode(SaveLoadScene.Modes.Save);
             Forge.switchScene(SaveLoadScene.instance());
+        }
+        return true;
+    }
+
+    public boolean duelFriend() {
+        if (TileMapScene.instance().currentMap().isInMap()) {
+            showDialog(createGenericDialog("", "Leave the town or dungeon before starting a duel.",
+                    Forge.getLocalizer().getMessage("lblOK"), null, this::removeDialog, null));
+            return true;
+        }
+        String error = AdventureDuel.start();
+        if (error != null) {
+            showDialog(createGenericDialog("", error, Forge.getLocalizer().getMessage("lblOK"), null, this::removeDialog, null));
+        } else {
+            SoundSystem.instance.stopBackgroundMusic();
         }
         return true;
     }
@@ -345,6 +369,9 @@ public class StartScene extends UIScene {
 
     @Override
     public void enter() {
+        if (AdventureDuel.isActive()) {
+            AdventureDuel.end(); // back in Adventure: any duel session is over
+        }
         boolean hasSaveButton = WorldSave.getCurrentSave().getWorld().getData() != null;
         if (hasSaveButton) {
             TileMapScene scene = TileMapScene.instance();
@@ -352,6 +379,8 @@ public class StartScene extends UIScene {
         }
         saveButton.setVisible(hasSaveButton);
         saveButton.setDisabled(TileMapScene.instance().currentMap().isInMap());
+        duelButton.setVisible(hasSaveButton);
+        duelButton.setDisabled(TileMapScene.instance().currentMap().isInMap());
         updateResumeContinue();
 
         FSkinTexture.invalidateAdventureTextures();

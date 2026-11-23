@@ -14,6 +14,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Align;
 
 import forge.Forge;
+import forge.adventure.util.AdventureDuel;
 import forge.Graphics;
 import forge.ai.AIOption;
 import forge.assets.FSkinColor;
@@ -776,7 +777,14 @@ public abstract class LobbyScreen extends LaunchScreen implements ILobbyView {
         String deckName = "";
 
         Deck deck;
-        if (hasVariant(GameType.Commander)) {
+        if (AdventureDuel.isActive() && lobby.getSlot(playerIndex).getType() == LobbySlotType.LOCAL) {
+            // Adventure Duel: the only deck allowed is the one picked from this player's Adventure decks
+            deck = AdventureDuel.getChosenDeck();
+            if (deck != null) {
+                deckName = AdventureDuel.getDeckLabel();
+            }
+        }
+        else if (hasVariant(GameType.Commander)) {
             deck = playerPanel.getCommanderDeck();
             if (deck != null) {
                 playerPanel.getCommanderDeckChooser().saveState();

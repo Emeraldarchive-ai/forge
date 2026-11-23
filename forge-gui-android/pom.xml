@@ -711,12 +711,12 @@
             <!-- test build signed with embedded debug.keystore from uber-signer -->
             <id>android-dev-build</id>
             <properties>
-                <app.id.dev>forge.app.dev</app.id.dev>
+                <app.id.dev>forge.app.duel</app.id.dev>
                 <packaging.type>apk</packaging.type>
             </properties>
             <build>
                 <!-- append generated snapshot-version property -->
-                <finalName>forge-dev-android-${snapshot-version}</finalName>
+                <finalName>forge-duel-android-${snapshot-version}</finalName>
                 <plugins>
                     <plugin>
                         <artifactId>exec-maven-plugin</artifactId>
@@ -814,7 +814,7 @@
                                     <goal>manifest-merger</goal>
                                 </goals>
                                 <configuration>
-                                    <manifestVersionName>${snapshot-version}-dev</manifestVersionName>
+                                    <manifestVersionName>${snapshot-version}-duel</manifestVersionName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -825,7 +825,7 @@
                                 </goals>
                                 <configuration>
                                     <versionCodeUpdateFromVersion>false</versionCodeUpdateFromVersion>
-                                    <manifestApplicationLabel>Forge (dev)</manifestApplicationLabel>
+                                    <manifestApplicationLabel>Forge Duel</manifestApplicationLabel>
                                     <manifestProviderAuthorities>
                                         <io.sentry.android.core.SentryInitProvider>${app.id.dev}.SentryInitProvider</io.sentry.android.core.SentryInitProvider>
                                         <io.sentry.android.core.SentryPerformanceProvider>${app.id.dev}.SentryPerformanceProvider</io.sentry.android.core.SentryPerformanceProvider>

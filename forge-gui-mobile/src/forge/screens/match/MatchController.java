@@ -27,6 +27,7 @@ import forge.game.player.Player;
 import forge.game.player.PlayerController.FullControlFlag;
 import forge.util.collect.FCollection;
 import forge.Forge;
+import forge.adventure.util.AdventureDuel;
 import forge.Graphics;
 import forge.GuiMobile;
 import forge.LobbyPlayer;
@@ -428,6 +429,9 @@ public class MatchController extends NetworkGuiGame {
 
     @Override
     public void finishGame() {
+        if (AdventureDuel.isActive() && !isReplay()) {
+            AdventureDuel.onGameFinished(getGameView(), getLocalPlayers());
+        }
         if (Forge.isMobileAdventureMode) {
             if (Config.instance().getSettingData().disableWinLose) {
                 MatchController.writeMatchPreferences();

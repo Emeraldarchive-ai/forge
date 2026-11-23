@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import forge.Forge;
+import forge.adventure.util.AdventureDuel;
 import forge.Graphics;
 import forge.ai.AIOption;
 import forge.assets.FSkin;
@@ -136,6 +137,9 @@ public class PlayerPanel extends FContainer {
                 btnDeck.setEnabled(mayEdit);
                 btnDeck.setText(deckChooser.getSelectedDeckType().toString() + ":" + (Forge.isLandscapeMode() ? " " : "\n") +
                         Lang.joinHomogenous(((DeckManager)e.getSource()).getSelectedItems(), DeckProxy::getName));
+                if (AdventureDuel.isActive() && allowNetworking) {
+                    btnDeck.setText(AdventureDuel.getDeckLabel());
+                }
                 if (allowNetworking && btnDeck.isEnabled() && humanAiSwitch.isToggled()) { //if its ready but changed the deck, update it
                     screen.updateMyDeck(index);
                 }
@@ -261,6 +265,18 @@ public class PlayerPanel extends FContainer {
         }
         add(btnDeck);
         btnDeck.setCommand(e -> {
+            if (AdventureDuel.isActive() && allowNetworking) {
+                // Adventure Duel: only this character's Adventure decks can be picked
+                GuiChoose.oneOrNone("Choose your Adventure deck", AdventureDuel.getDeckChoices(), choice -> {
+                    if (choice == null) {
+                        return;
+                    }
+                    AdventureDuel.chooseDeck(choice);
+                    btnDeck.setText(AdventureDuel.getDeckLabel());
+                    screen.updateMyDeck(index);
+                });
+                return;
+            }
             deckChooser.setHeaderCaption(Forge.getLocalizer().getMessage("lblSelectDeckFor").replace("%s", txtPlayerName.getText()));
             Forge.openScreen(deckChooser);
         });

@@ -915,6 +915,11 @@ public class Forge implements ApplicationListener {
     }
 
     public static void switchToClassic() {
+        switchToClassic(null);
+    }
+
+    /** Switches from Adventure to classic mode, then runs afterOpen (e.g. to open a screen other than home). */
+    public static void switchToClassic(final Runnable afterOpen) {
         if (switchClassic)
             return;
         switchClassic = true;
@@ -931,6 +936,8 @@ public class Forge implements ApplicationListener {
             exited = false;
             switchClassic = false;
             FrameRate.getInstance().updateHistoricalPeak(showFPS);
+            if (afterOpen != null)
+                afterOpen.run();
         }, ScreenUtil.getInstance().takeScreenshot(), false, false));
     }
 

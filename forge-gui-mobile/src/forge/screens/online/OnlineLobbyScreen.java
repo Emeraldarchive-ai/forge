@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Align;
 
 import forge.Forge;
+import forge.adventure.util.AdventureDuel;
 import forge.assets.FSkinColor;
 import forge.assets.FSkinFont;
 import forge.deck.Deck;
@@ -15,6 +16,7 @@ import forge.gamemodes.limited.BoosterDraft;
 import forge.gamemodes.limited.LimitedPoolType;
 import forge.gamemodes.match.GameLobby;
 import forge.gamemodes.match.LobbySlot;
+import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.net.ChatMessage;
 import forge.gamemodes.net.EventFormat;
 import forge.gamemodes.net.IOnlineChatInterface;
@@ -27,6 +29,7 @@ import forge.gamemodes.net.OfflineLobby;
 import forge.gamemodes.net.client.FGameClient;
 import forge.gamemodes.net.event.DraftPickEvent;
 import forge.gamemodes.net.server.FServerManager;
+import forge.gamemodes.net.server.HostingServer;
 import forge.gamemodes.net.server.ServerGameLobby;
 import forge.gui.FThreads;
 import forge.gui.interfaces.IDraftEventHandler;
@@ -54,9 +57,11 @@ import forge.util.Utils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDraftEventHandler {
@@ -84,12 +89,15 @@ public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDra
     private NetworkEventView lastEventView;
     private boolean eventDrafted; // true after receiveEventPool marks draft done
     private NetworkDraftingProcessScreen activeDraftScreen;
+    private static final String DEFAULT_TITLE = "- = *  H E R E   B E   E L D R A Z I  * = -";
+    private boolean closingFromConnection; // set while closeConn() leaves the lobby because of an error
+    static boolean swappingScreens; // set while the online menu swaps lobby <-> chat
 
     public OnlineLobbyScreen() {
         super(null, OnlineMenu.getMenu(), new OfflineLobby());
 
         lblTitle = new FLabel.Builder()
-                .text("- = *  H E R E   B E   E L D R A Z I  * = -")
+                .text(DEFAULT_TITLE)
                 .font(FSkinFont.get(18)).align(Align.center).build();
         add(lblTitle);
 
@@ -528,7 +536,9 @@ public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDra
             if (draftScreen != null) {
                 draftScreen.onDraftCompleted(); // connection gone — close silently, like a finished draft
             }
+            closingFromConnection = !msg.isEmpty();
             Forge.back();
+            closingFromConnection = false;
         });
         if (msg.length() > 0) {
             FThreads.invokeInBackgroundThread(() -> {
@@ -630,6 +640,11 @@ public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDra
             float padding = Utils.scale(10);
             float y = startY + height * 0.15f;
 
+            lblTitle.setText(AdventureDuel.isActive()
+                    ? "ADVENTURE DUEL: " + AdventureDuel.getCharacterName() + "\nWin = " + AdventureDuel.WIN_COINS
+                        + " coins, lose = " + AdventureDuel.LOSE_COINS + " coins"
+                    : DEFAULT_TITLE);
+
             float labelHeight = lblTitle.getAutoSizeBounds().height + padding;
             lblTitle.setBounds(padding, y, width - 2 * padding, labelHeight);
             lblTitle.setVisible(true);
@@ -680,7 +695,10 @@ public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDra
             // The mode combo shows for host and client alike; read-only (disabled) for a
             // client, whose selection is synced from the host in update().
             cmbMode.setVisible(true);
-            cmbMode.setEnabled(isHost);
+            cmbMode.setEnabled(isHost && !AdventureDuel.isActive()); // Adventure Duel is Constructed only
+            if (AdventureDuel.isActive()) {
+                setVariantsVisible(false);
+            }
             cmbMode.setBounds(padding, startY + padding, comboW, fieldH);
             // Give the combo its own row in both modes so the player list starts at the
             // same height; in Limited the hidden variants row leaves that slot blank
@@ -804,6 +822,87 @@ public class OnlineLobbyScreen extends LobbyScreen implements IOnlineLobby, IDra
                 }
             }
         }
+    }
+
+    @Override
+    protected void startMatch() {
+        if (AdventureDuel.isActive()) {
+            String problem = checkAdventureDuelSlots();
+            if (problem != null) {
+                FOptionPane.showMessageDialog(problem, "Adventure Duel");
+                return;
+            }
+        }
+        super.startMatch();
+    }
+
+    /** Host-side check that every seat is a human using an Adventure deck, with distinct names. */
+    private String checkAdventureDuelSlots() {
+        GameLobby lobby = getLobby();
+        if (lobby == null) {
+            return null;
+        }
+        Set<String> names = new HashSet<>();
+        int humans = 0;
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            LobbySlot slot = lobby.getSlot(i);
+            if (slot == null || slot.getType() == LobbySlotType.OPEN) {
+                continue;
+            }
+            if (slot.getType() == LobbySlotType.AI) {
+                return "Adventure Duel is for human players only. Remove the AI player.";
+            }
+            humans++;
+            String deckName = slot.getDeckName();
+            if (deckName == null || !deckName.startsWith(AdventureDuel.DECK_PREFIX)) {
+                return slot.getName() + " is not using an Adventure deck.\n"
+                        + "Both players must open this lobby from Adventure > Duel, pick a deck, and tap Ready.";
+            }
+            if (!names.add(slot.getName())) {
+                return "Both players have the name \"" + slot.getName() + "\". Change one name so the winner gets the right coins.";
+            }
+        }
+        if (humans < 2) {
+            return "Wait for your friend to join.";
+        }
+        return null;
+    }
+
+    @Override
+    public void onClose(Consumer<Boolean> canCloseCallback) {
+        if (canCloseCallback == null) { // app is exiting
+            super.onClose(null);
+            return;
+        }
+        super.onClose(result -> {
+            if (canCloseCallback != null) {
+                canCloseCallback.accept(result);
+            }
+            if (Boolean.TRUE.equals(result) && AdventureDuel.isActive() && !swappingScreens) {
+                leaveAdventureDuel();
+            }
+        });
+    }
+
+    /** Leaving the duel lobby disconnects and, unless the connection dropped, goes back to Adventure. */
+    private void leaveAdventureDuel() {
+        if (closingFromConnection) {
+            AdventureDuel.end(); // closeConn() cleans up the connection; stay so its error can be read
+            return;
+        }
+        try {
+            if (HostingServer.isHosting()) {
+                FServerManager.getInstance().unsetReady();
+                FServerManager.getInstance().stopServer();
+            }
+            if (getfGameClient() != null) {
+                closeClient();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        clearGameLobby();
+        AdventureDuel.returnToAdventure();
     }
 
     private void activateHost() {
